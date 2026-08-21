@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>定型文スニペット帳</title>
+  <style>
+    :root {
+      color: #2B331D;
+      background: #F0F5DC;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: #F0F5DC;
+      color: #2B331D;
+    }
+
+    main {
+      width: min(100%, 640px);
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    .lead {
+      margin: 8px 0 24px;
+      color: #5C6B49;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .panel, .snippet-card {
+      border: 1px solid #DCE5C4;
+      border-radius: 6px;
+      background: #FFFFFF;
+    }
+
+    .panel { padding: 16px; }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    form, .field { display: grid; gap: 8px; }
+
+    .field { margin-bottom: 16px; }
+
+    label {
+      color: #5C6B49;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    input, textarea, button {
+      font: inherit;
+      font-size: 16px;
+    }
+
+    input, textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px;
+      border: 1px solid #DCE5C4;
+      border-radius: 6px;
+      background: #FFFFFF;
+      color: #2B331D;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    input:focus, textarea:focus, button:focus-visible {
+      outline: 3px solid #DCE5C4;
+      outline-offset: 2px;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .register-button, .copy-button {
+      background: #4C7A3E;
+      color: #FFFFFF;
+    }
+
+    .delete-button {
+      border-color: #D93025;
+      background: #FFFFFF;
+      color: #D93025;
+    }
+
+    .form-error {
+      min-height: 20px;
+      margin: 8px 0 0;
+      color: #D93025;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .list-section { margin-top: 24px; }
+
+    .snippet-list { display: grid; gap: 8px; }
+
+    .snippet-card { padding: 8px; }
+
+    .snippet-title {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.5;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .snippet-body {
+      display: -webkit-box;
+      margin: 8px 0;
+      overflow: hidden;
+      color: #5C6B49;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .card-actions button { flex: 1 1 120px; }
+
+    .empty-state {
+      margin: 0;
+      padding: 16px;
+      border: 1px solid #DCE5C4;
+      border-radius: 6px;
+      background: #FFFFFF;
+      color: #5C6B49;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>定型文スニペット帳</h1>
+      <p class="lead">よく使う文章を登録しておけば、ワンクリックでコピーできます</p>
+    </header>
+
+    <section class="panel" aria-labelledby="form-heading">
+      <h2 id="form-heading">定型文を登録</h2>
+      <form id="snippet-form">
+        <div class="field">
+          <label for="title">タイトル</label>
+          <input id="title" name="title" type="text" required maxlength="100" autocomplete="off" placeholder="例：お問い合わせへの返信">
+        </div>
+        <div class="field">
+          <label for="body">本文</label>
+          <textarea id="body" name="body" required maxlength="5000" placeholder="よく使う定型文を入力してください"></textarea>
+        </div>
+        <button class="register-button" type="submit">登録する</button>
+      </form>
+      <p id="form-error" class="form-error" role="alert" aria-live="polite"></p>
+    </section>
+
+    <section class="list-section" aria-labelledby="list-heading">
+      <h2 id="list-heading">登録済みの定型文</h2>
+      <div id="snippet-list" class="snippet-list"></div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const storageKey = 'snippet-book-items';
+      const form = document.querySelector('#snippet-form');
+      const titleInput = document.querySelector('#title');
+      const bodyInput = document.querySelector('#body');
+      const errorMessage = document.querySelector('#form-error');
+      const list = document.querySelector('#snippet-list');
+
+      function loadSnippets() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          return Array.isArray(saved) ? saved : [];
+        } catch {
+          return [];
+        }
+      }
+
+      let snippets = loadSnippets();
+
+      function saveSnippets() {
+        localStorage.setItem(storageKey, JSON.stringify(snippets));
+      }
+
+      function makeButton(text, className, handler) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = className;
+        button.textContent = text;
+        button.addEventListener('click', handler);
+        return button;
+      }
+
+      async function copyText(text, button) {
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const temporary = document.createElement('textarea');
+            temporary.value = text;
+            temporary.setAttribute('readonly', '');
+            temporary.style.opacity = '0';
+            document.body.append(temporary);
+            temporary.select();
+            const succeeded = document.execCommand('copy');
+            temporary.remove();
+            if (!succeeded) throw new Error('Copy failed');
+          }
+          button.textContent = 'コピーしました';
+          setTimeout(() => { button.textContent = 'コピー'; }, 1600);
+        } catch {
+          button.textContent = 'コピーできませんでした';
+          setTimeout(() => { button.textContent = 'コピー'; }, 1600);
+        }
+      }
+
+      function render() {
+        list.replaceChildren();
+        if (snippets.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'empty-state';
+          empty.textContent = 'まだ登録がありません';
+          list.append(empty);
+          return;
+        }
+
+        snippets.forEach((snippet, index) => {
+          const card = document.createElement('article');
+          card.className = 'snippet-card';
+
+          const title = document.createElement('h3');
+          title.className = 'snippet-title';
+          title.textContent = snippet.title;
+
+          const body = document.createElement('p');
+          body.className = 'snippet-body';
+          body.textContent = snippet.body;
+
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          actions.append(
+            makeButton('コピー', 'copy-button', (event) => copyText(snippet.body, event.currentTarget)),
+            makeButton('削除', 'delete-button', () => {
+              if (!window.confirm(`「${snippet.title}」を削除しますか？`)) return;
+              snippets.splice(index, 1);
+              saveSnippets();
+              render();
+            })
+          );
+
+          card.append(title, body, actions);
+          list.append(card);
+        });
+      }
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const title = titleInput.value.trim();
+        const body = bodyInput.value.trim();
+        if (!title || !body) {
+          errorMessage.textContent = 'タイトルと本文を入力してください。';
+          return;
+        }
+        snippets.unshift({ title, body });
+        saveSnippets();
+        form.reset();
+        errorMessage.textContent = '';
+        render();
+        titleInput.focus();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
